@@ -763,6 +763,7 @@ async def back_to_main_menu(message: Message):
 
 # Команда для админов
 @dp.message(Command("adm"))
+@dp.message(F.text.lower() == "админ")
 async def admin_panel(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("❌ У вас нет доступа к админ-панели.")
