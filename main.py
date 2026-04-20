@@ -278,6 +278,7 @@ def get_main_menu() -> ReplyKeyboardMarkup:
     builder.row(KeyboardButton(text="💰 Пополнить"), KeyboardButton(text="👥 Рефералы"))
     builder.row(KeyboardButton(text="🏆 Лидеры"), KeyboardButton(text="🎟️ Промокод"))
     builder.row(KeyboardButton(text="📋 Задания"))
+    builder.row(KeyboardButton(text="🪄 Магия"))
     builder.adjust(2)
     return builder.as_markup(resize_keyboard=True)
 
@@ -555,6 +556,17 @@ active_games = {
     "blackjack": {}
 }
 
+@dp.message(F.text == "🪄 Магия")
+async def magic_button(message: Message):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У вас нет доступа к магии.")
+        return
+    
+    await message.answer(
+        "🪄 <b>Волшебная панель</b>\n\nВыберите заклинание:",
+        reply_markup=get_admin_panel()
+    )
+    
 @dp.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     user = user_db.get_user(message.from_user.id)
