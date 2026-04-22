@@ -65,11 +65,11 @@ DEFAULT_SETTINGS = {
         "volatility": {"low": 0.5, "medium": 1.5, "high": 3.0}
     },
     "bot": {
-        "daily_bonus_min": 10,
-        "daily_bonus_max": 100,
-        "referral_bonus": 50,
+        "daily_bonus_min": 1,
+        "daily_bonus_max": 10,
+        "referral_bonus": 1,
         "referral_percent": 5,
-        "welcome_bonus": 100,
+        "welcome_bonus": 5,
         "min_deposit": 10,
         "min_withdraw": 100,
         "withdraw_hold_hours": 24,  # ← ХОЛД ПРИ ВЫВОДЕ NFT
