@@ -25,7 +25,6 @@ from aiohttp import web
 # ========== КОНФИГУРАЦИЯ ==========
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "ВАШ_ТОКЕН_СЮДА")
 ADMIN_IDS = [8440115662, 8114610850]
-
 MINI_APP_URL = "https://lackygifts1488.netlify.app"
 
 DATA_DIR = "data"
@@ -43,40 +42,15 @@ STATS_FILE = f"{DATA_DIR}/stats.json"
 MUSIC_FILE = f"{DATA_DIR}/music.json"
 POSITIONS_FILE = f"{DATA_DIR}/positions.json"
 
-# ========== НАСТРОЙКИ ПО УМОЛЧАНИЮ ==========
 DEFAULT_SETTINGS = {
-    "rocket": {
-        "house_edge": 5,
-        "color_thresholds": {"blue": 1.5, "red": 2.0, "gold": 2.0}
-    },
-    "mines": {
-        "multipliers_3": [1.0, 1.2, 1.5, 2.0, 3.0, 5.0],
-        "multipliers_5": [1.0, 1.3, 1.6, 2.2, 3.2, 5.5, 10.0],
-        "multipliers_8": [1.0, 1.4, 1.9, 2.8, 4.5, 8.0, 15.0],
-        "rigged_chance": 20,
-        "big_bet_threshold": 300,
-        "big_bet_rigged": 30
-    },
-    "blackjack": {
-        "dealer_win_chance": 55,
-        "blackjack_multiplier": 2.5
-    },
-    "trading": {
-        "volatility": {"low": 0.5, "medium": 1.5, "high": 3.0}
-    },
-    "bot": {
-        "daily_bonus_min": 1,
-        "daily_bonus_max": 10,
-        "referral_bonus": 1,
-        "referral_percent": 5,
-        "welcome_bonus": 5,
-        "min_deposit": 10,
-        "withdraw_hold_hours": 24,
-        "withdraw_penalty_percent": 20
-    }
+    "rocket": {"house_edge": 5, "color_thresholds": {"blue": 1.5, "red": 2.0, "gold": 2.0}},
+    "mines": {"multipliers_3": [1.0,1.2,1.5,2.0,3.0,5.0], "multipliers_5": [1.0,1.3,1.6,2.2,3.2,5.5,10.0], "multipliers_8": [1.0,1.4,1.9,2.8,4.5,8.0,15.0], "rigged_chance": 20, "big_bet_threshold": 300, "big_bet_rigged": 30},
+    "blackjack": {"dealer_win_chance": 55, "blackjack_multiplier": 2.5},
+    "trading": {"volatility": {"low": 0.5, "medium": 1.5, "high": 3.0}},
+    "bot": {"daily_bonus_min": 1, "daily_bonus_max": 10, "referral_bonus": 1, "referral_percent": 5, "welcome_bonus": 5, "min_deposit": 10, "withdraw_hold_hours": 24, "withdraw_penalty_percent": 20}
 }
 
-# ========== БАЗА ДАННЫХ ==========
+# ========== JSON БАЗА ДАННЫХ ==========
 class Database:
     @staticmethod
     def load_file(filename: str, default: Any = None) -> Any:
@@ -96,12 +70,8 @@ class Database:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
 class UserDB:
-    def __init__(self):
-        self.users = Database.load_file(USERS_FILE, {})
-
-    def save(self):
-        Database.save_file(USERS_FILE, self.users)
-
+    def __init__(self): self.users = Database.load_file(USERS_FILE, {})
+    def save(self): Database.save_file(USERS_FILE, self.users)
     def get_user(self, user_id: int) -> Dict:
         user_id = str(user_id)
         if user_id not in self.users:
@@ -110,34 +80,26 @@ class UserDB:
                 "balance": int(DEFAULT_SETTINGS["bot"]["welcome_bonus"]),
                 "total_deposit": 0, "total_withdraw": 0,
                 "games_played": 0, "games_won": 0,
-                "referral_code": self._generate_ref_code(),
+                "referral_code": ''.join(random.choices(string.ascii_uppercase + string.digits, k=8)),
                 "referred_by": None, "referrals_count": 0, "referral_earnings": 0,
                 "inventory": [], "completed_tasks": [], "used_promos": [],
                 "daily_streak": 0, "last_daily": None,
                 "registered_at": datetime.now().isoformat(),
-                "last_active": datetime.now().isoformat(),
-                "banned": False
+                "last_active": datetime.now().isoformat(), "banned": False
             }
             self.save()
         return self.users[user_id]
-
-    def _generate_ref_code(self) -> str:
-        return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-
     def update_user(self, user_id: int, data: Dict) -> None:
         user_id = str(user_id)
         if user_id in self.users:
             self.users[user_id].update(data)
             self.save()
-
     def add_balance(self, user_id: int, amount: int) -> int:
         user = self.get_user(user_id)
         user["balance"] += amount
-        if amount > 0:
-            user["total_deposit"] += amount
+        if amount > 0: user["total_deposit"] += amount
         self.save()
         return user["balance"]
-
     def remove_balance(self, user_id: int, amount: int) -> bool:
         user = self.get_user(user_id)
         if user["balance"] >= amount:
@@ -145,63 +107,40 @@ class UserDB:
             self.save()
             return True
         return False
-
     def get_top_players(self, limit: int = 10, sort_by: str = "balance") -> List[Dict]:
         players = []
         for uid, data in self.users.items():
             if not data.get("banned", False):
                 players.append({
                     "id": uid, "username": data.get("username", "Unknown"),
-                    "first_name": data.get("first_name", "Unknown"),
-                    "balance": data.get("balance", 0),
-                    "games_won": data.get("games_won", 0)
+                    "balance": data.get("balance", 0), "games_won": data.get("games_won", 0)
                 })
-        if sort_by == "balance":
-            players.sort(key=lambda x: x["balance"], reverse=True)
-        else:
-            players.sort(key=lambda x: x["games_won"], reverse=True)
+        players.sort(key=lambda x: x[sort_by if sort_by in ["balance","games_won"] else "balance"], reverse=True)
         return players[:limit]
 
 class CasesDB:
-    def __init__(self):
-        self.cases = Database.load_file(CASES_FILE, [])
-
-    def save(self):
-        Database.save_file(CASES_FILE, self.cases)
-
-    def get_all(self) -> List[Dict]:
-        return [c for c in self.cases if c.get("enabled", True)]
-
+    def __init__(self): self.cases = Database.load_file(CASES_FILE, [])
+    def save(self): Database.save_file(CASES_FILE, self.cases)
+    def get_all(self) -> List[Dict]: return [c for c in self.cases if c.get("enabled", True)]
     def get_case(self, case_id: int) -> Optional[Dict]:
         for case in self.cases:
-            if case["id"] == case_id:
-                return case
+            if case["id"] == case_id: return case
         return None
-
     def create_case(self, name: str, price: int, emoji: str = "📦") -> Dict:
-        case = {
-            "id": len(self.cases) + 1, "name": name, "price": price, "emoji": emoji,
-            "items": [], "total_opens": 0, "enabled": True,
-            "created_at": datetime.now().isoformat()
-        }
+        case = {"id": len(self.cases)+1, "name": name, "price": price, "emoji": emoji, "items": [], "total_opens": 0, "enabled": True, "created_at": datetime.now().isoformat()}
         self.cases.append(case)
         self.save()
         return case
-
     def add_item(self, case_id: int, item_type: str, name: str, value: int, emoji: str, chance: int) -> bool:
         case = self.get_case(case_id)
         if case:
-            case["items"].append({
-                "type": item_type, "name": name, "value": value, "emoji": emoji, "chance": chance
-            })
+            case["items"].append({"type": item_type, "name": name, "value": value, "emoji": emoji, "chance": chance})
             self.save()
             return True
         return False
-
     def open_case(self, case_id: int) -> Optional[Dict]:
         case = self.get_case(case_id)
-        if not case or not case["items"]:
-            return None
+        if not case or not case["items"]: return None
         case["total_opens"] += 1
         self.save()
         total_chance = sum(item["chance"] for item in case["items"])
@@ -209,145 +148,79 @@ class CasesDB:
         current = 0
         for item in case["items"]:
             current += item["chance"]
-            if rand <= current:
-                return item
+            if rand <= current: return item
         return case["items"][0]
 
 class NFTDB:
-    def __init__(self):
-        self.nfts = Database.load_file(NFTS_FILE, [])
-
-    def save(self):
-        Database.save_file(NFTS_FILE, self.nfts)
-
+    def __init__(self): self.nfts = Database.load_file(NFTS_FILE, [])
+    def save(self): Database.save_file(NFTS_FILE, self.nfts)
     def create_nft(self, name: str, value: int, emoji: str, rarity: str = "Обычный") -> Dict:
-        nft = {
-            "id": len(self.nfts) + 1, "name": name, "value": value, "emoji": emoji,
-            "rarity": rarity, "created_at": datetime.now().isoformat()
-        }
+        nft = {"id": len(self.nfts)+1, "name": name, "value": value, "emoji": emoji, "rarity": rarity, "created_at": datetime.now().isoformat()}
         self.nfts.append(nft)
         self.save()
         return nft
-
     def get_nft(self, nft_id: int) -> Optional[Dict]:
         for nft in self.nfts:
-            if nft["id"] == nft_id:
-                return nft
+            if nft["id"] == nft_id: return nft
         return None
 
 class SettingsDB:
-    def __init__(self):
-        self.settings = Database.load_file(SETTINGS_FILE, DEFAULT_SETTINGS)
-
-    def save(self):
-        Database.save_file(SETTINGS_FILE, self.settings)
-
-    def get(self, game: str, key: str, default=None):
-        return self.settings.get(game, {}).get(key, default)
-
+    def __init__(self): self.settings = Database.load_file(SETTINGS_FILE, DEFAULT_SETTINGS)
+    def save(self): Database.save_file(SETTINGS_FILE, self.settings)
+    def get(self, game: str, key: str, default=None): return self.settings.get(game, {}).get(key, default)
     def set(self, game: str, key: str, value: Any) -> None:
-        if game not in self.settings:
-            self.settings[game] = {}
+        if game not in self.settings: self.settings[game] = {}
         self.settings[game][key] = value
         self.save()
 
 class PromoDB:
-    def __init__(self):
-        self.promos = Database.load_file(PROMOS_FILE, [])
-
-    def save(self):
-        Database.save_file(PROMOS_FILE, self.promos)
-
+    def __init__(self): self.promos = Database.load_file(PROMOS_FILE, [])
+    def save(self): Database.save_file(PROMOS_FILE, self.promos)
     def create(self, code: str, reward_type: str, value: int, uses: int, expires: str = None) -> Dict:
-        promo = {
-            "id": len(self.promos) + 1, "code": code.upper(), "reward_type": reward_type,
-            "value": value, "uses_total": uses, "uses_left": uses,
-            "expires_at": expires, "enabled": True, "created_at": datetime.now().isoformat()
-        }
+        promo = {"id": len(self.promos)+1, "code": code.upper(), "reward_type": reward_type, "value": value, "uses_total": uses, "uses_left": uses, "expires_at": expires, "enabled": True, "created_at": datetime.now().isoformat()}
         self.promos.append(promo)
         self.save()
         return promo
-
     def use(self, code: str, user_id: int) -> Optional[Dict]:
         code = code.upper()
         for promo in self.promos:
             if promo["code"] == code and promo["enabled"] and promo["uses_left"] > 0:
-                if promo["expires_at"] and datetime.now().isoformat() > promo["expires_at"]:
-                    continue
+                if promo["expires_at"] and datetime.now().isoformat() > promo["expires_at"]: continue
                 promo["uses_left"] -= 1
                 self.save()
                 return promo
         return None
 
 class TasksDB:
-    def __init__(self):
-        self.tasks = Database.load_file(TASKS_FILE, [])
-
-    def save(self):
-        Database.save_file(TASKS_FILE, self.tasks)
-
-    def get_active(self) -> List[Dict]:
-        return [t for t in self.tasks if t.get("enabled", True)]
-
+    def __init__(self): self.tasks = Database.load_file(TASKS_FILE, [])
+    def save(self): Database.save_file(TASKS_FILE, self.tasks)
+    def get_active(self) -> List[Dict]: return [t for t in self.tasks if t.get("enabled", True)]
     def create(self, name: str, reward: int, channel_id: str, channel_url: str, mandatory: bool = False) -> Dict:
-        task = {
-            "id": len(self.tasks) + 1, "name": name, "reward": reward,
-            "channel_id": channel_id, "channel_url": channel_url, "mandatory": mandatory,
-            "enabled": True, "created_at": datetime.now().isoformat()
-        }
+        task = {"id": len(self.tasks)+1, "name": name, "reward": reward, "channel_id": channel_id, "channel_url": channel_url, "mandatory": mandatory, "enabled": True, "created_at": datetime.now().isoformat()}
         self.tasks.append(task)
         self.save()
         return task
 
 class MusicDB:
-    def __init__(self):
-        self.music = Database.load_file(MUSIC_FILE, [])
-
-    def save(self):
-        Database.save_file(MUSIC_FILE, self.music)
-
-    def get_all(self) -> List[Dict]:
-        return self.music
-
+    def __init__(self): self.music = Database.load_file(MUSIC_FILE, [])
+    def save(self): Database.save_file(MUSIC_FILE, self.music)
+    def get_all(self) -> List[Dict]: return self.music
     def add(self, name: str, url: str) -> Dict:
-        track = {
-            "id": len(self.music) + 1, "name": name, "url": url,
-            "created_at": datetime.now().isoformat()
-        }
+        track = {"id": len(self.music)+1, "name": name, "url": url, "created_at": datetime.now().isoformat()}
         self.music.append(track)
         self.save()
         return track
 
-    def delete(self, track_id: int) -> bool:
-        self.music = [t for t in self.music if t["id"] != track_id]
-        self.save()
-        return True
-
 class WithdrawDB:
-    def __init__(self):
-        self.withdraws = Database.load_file(WITHDRAWS_FILE, [])
-
-    def save(self):
-        Database.save_file(WITHDRAWS_FILE, self.withdraws)
-
+    def __init__(self): self.withdraws = Database.load_file(WITHDRAWS_FILE, [])
+    def save(self): Database.save_file(WITHDRAWS_FILE, self.withdraws)
     def create(self, user_id: int, nft_id: str, nft_name: str, nft_value: int) -> Dict:
         hold_hours = settings_db.get("bot", "withdraw_hold_hours", 24)
-        req = {
-            "id": len(self.withdraws) + 1, "user_id": user_id, "nft_id": nft_id,
-            "nft_name": nft_name, "nft_value": nft_value, "status": "pending",
-            "hold_until": (datetime.now() + timedelta(hours=hold_hours)).isoformat(),
-            "created_at": datetime.now().isoformat(), "processed_at": None
-        }
+        req = {"id": len(self.withdraws)+1, "user_id": user_id, "nft_id": nft_id, "nft_name": nft_name, "nft_value": nft_value, "status": "pending", "hold_until": (datetime.now() + timedelta(hours=hold_hours)).isoformat(), "created_at": datetime.now().isoformat(), "processed_at": None}
         self.withdraws.append(req)
         self.save()
         return req
-
-    def get_pending(self) -> List[Dict]:
-        return [w for w in self.withdraws if w["status"] == "pending"]
-
-    def get_user_pending(self, user_id: int) -> List[Dict]:
-        return [w for w in self.withdraws if w["user_id"] == user_id and w["status"] == "pending"]
-
+    def get_pending(self) -> List[Dict]: return [w for w in self.withdraws if w["status"] == "pending"]
     def complete(self, req_id: int) -> bool:
         for req in self.withdraws:
             if req["id"] == req_id:
@@ -358,44 +231,25 @@ class WithdrawDB:
         return False
 
 class StatsDB:
-    def __init__(self):
-        self.stats = Database.load_file(STATS_FILE, {
-            "total_users": 0, "total_deposits": 0, "total_withdraws": 0,
-            "total_games": 0, "game_stats": {}
-        })
-
-    def save(self):
-        Database.save_file(STATS_FILE, self.stats)
-
+    def __init__(self): self.stats = Database.load_file(STATS_FILE, {"total_users": 0, "total_deposits": 0, "total_withdraws": 0, "total_games": 0, "game_stats": {}})
+    def save(self): Database.save_file(STATS_FILE, self.stats)
     def add_game(self, game: str, bet: int, win: int):
         self.stats["total_games"] += 1
-        if game not in self.stats["game_stats"]:
-            self.stats["game_stats"][game] = {"played": 0, "total_bet": 0, "total_win": 0}
+        if game not in self.stats["game_stats"]: self.stats["game_stats"][game] = {"played": 0, "total_bet": 0, "total_win": 0}
         self.stats["game_stats"][game]["played"] += 1
         self.stats["game_stats"][game]["total_bet"] += bet
         self.stats["game_stats"][game]["total_win"] += win
         self.save()
 
 class PositionsDB:
-    def __init__(self):
-        self.positions = Database.load_file(POSITIONS_FILE, [])
-
-    def save(self):
-        Database.save_file(POSITIONS_FILE, self.positions)
-
+    def __init__(self): self.positions = Database.load_file(POSITIONS_FILE, [])
+    def save(self): Database.save_file(POSITIONS_FILE, self.positions)
     def create(self, user_id: int, asset_id: int, asset_name: str, pos_type: str, amount: int, open_price: float) -> Dict:
-        pos = {
-            "id": len(self.positions) + 1, "user_id": user_id, "asset_id": asset_id,
-            "asset_name": asset_name, "type": pos_type, "amount": amount,
-            "open_price": open_price, "created_at": datetime.now().isoformat()
-        }
+        pos = {"id": len(self.positions)+1, "user_id": user_id, "asset_id": asset_id, "asset_name": asset_name, "type": pos_type, "amount": amount, "open_price": open_price, "created_at": datetime.now().isoformat()}
         self.positions.append(pos)
         self.save()
         return pos
-
-    def get_user_positions(self, user_id: int) -> List[Dict]:
-        return [p for p in self.positions if p["user_id"] == user_id]
-
+    def get_user_positions(self, user_id: int) -> List[Dict]: return [p for p in self.positions if p["user_id"] == user_id]
     def close(self, pos_id: int) -> Optional[Dict]:
         for pos in self.positions:
             if pos["id"] == pos_id:
@@ -458,7 +312,6 @@ async def cmd_start(message: Message, state: FSMContext):
     user["username"] = message.from_user.username or ""
     user["first_name"] = message.from_user.first_name or ""
     user_db.save()
-
     args = message.text.split()
     if len(args) > 1 and args[1].startswith("ref_"):
         ref_code = args[1][4:]
@@ -471,7 +324,6 @@ async def cmd_start(message: Message, state: FSMContext):
                     user_db.add_balance(int(uid), bonus)
                     await bot.send_message(uid, f"🎉 По вашей ссылке новый игрок! +{bonus}⭐")
                 break
-
     await message.answer(
         f"🎰 Добро пожаловать, {message.from_user.first_name}!\n"
         f"💰 Баланс: {user['balance']} ⭐\n\n"
@@ -532,284 +384,7 @@ async def close_admin(callback: CallbackQuery):
 async def back_admin(callback: CallbackQuery):
     if callback.from_user.id not in ADMIN_IDS: return
     await callback.message.edit_text("🔐 <b>Админ-панель</b>", reply_markup=get_admin_panel())
-# ========== API ДЛЯ MINI APP ==========
-def api_response(data: Dict, success: bool = True) -> web.Response:
-    response = web.json_response({"success": success, **data})
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-User-Id"
-    return response
-
-async def handle_api_request(request: web.Request) -> web.Response:
-    # CORS preflight (OPTIONS)
-    if request.method == "OPTIONS":
-        return web.Response(
-            status=200,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, X-User-Id",
-            }
-        )
-
-    try:
-        path = request.path.replace("/api", "")
-        method = request.method
-        body = await request.json() if method in ["POST", "PUT"] else {}
-
-        user_id = body.get("user_id") or request.headers.get("X-User-Id")
-        if user_id:
-            user_id = int(user_id)
-
-        # ===== ПОЛЬЗОВАТЕЛЬ =====
-        if path.startswith("/user") and method == "GET":
-            user = user_db.get_user(user_id) if user_id else None
-            return api_response({"user": user} if user else {"message": "User not found"}, user is not None)
-
-        # ===== КЕЙСЫ =====
-        if path == "/cases" and method == "GET":
-            cases = cases_db.get_all()
-            return api_response({"cases": cases})
-
-        if path == "/case/open" and method == "POST":
-            case_id = body.get("case_id")
-            case = cases_db.get_case(case_id)
-            if not case:
-                return api_response({"message": "Кейс не найден"}, False)
-
-            user = user_db.get_user(user_id)
-            if user["balance"] < case["price"]:
-                return api_response({"message": "Недостаточно средств"}, False)
-
-            user_db.remove_balance(user_id, case["price"])
-            item = cases_db.open_case(case_id)
-
-            if item["type"] == "stars":
-                user_db.add_balance(user_id, item["value"])
-            else:
-                user["inventory"].append({
-                    "id": str(uuid.uuid4())[:8],
-                    "name": item["name"], "value": item["value"],
-                    "emoji": item["emoji"], "rarity": "Кейс"
-                })
-                user_db.save()
-
-            stats_db.add_game("cases", case["price"], item["value"] if item["type"] == "stars" else 0)
-            return api_response({"item": item})
-
-        if path == "/case/free" and method == "POST":
-            user = user_db.get_user(user_id)
-            today = datetime.now().date().isoformat()
-            if user.get("last_free_case") == today:
-                return api_response({"message": "Уже получили сегодня"}, False)
-
-            user["last_free_case"] = today
-            user_db.save()
-            value = random.randint(5, 20)
-            user_db.add_balance(user_id, value)
-            return api_response({"item": {"type": "stars", "name": "Бесплатные звёзды", "value": value, "emoji": "⭐"}})
-
-        # ===== ИНВЕНТАРЬ =====
-        if path.startswith("/inventory") and method == "GET":
-            user = user_db.get_user(user_id)
-            items = user.get("inventory", [])
-            return api_response({"items": items})
-
-        if path == "/inventory/sell" and method == "POST":
-            item_id = body.get("item_id")
-            user = user_db.get_user(user_id)
-            item = next((i for i in user["inventory"] if i["id"] == item_id), None)
-            if not item:
-                return api_response({"message": "Предмет не найден"}, False)
-
-            user["inventory"].remove(item)
-            sell_price = int(item["value"] * 1.05)
-            user_db.add_balance(user_id, sell_price)
-            user_db.save()
-            return api_response({"amount": sell_price})
-
-        if path == "/inventory/withdraw" and method == "POST":
-            item_id = body.get("item_id")
-            user = user_db.get_user(user_id)
-            item = next((i for i in user["inventory"] if i["id"] == item_id), None)
-            if not item:
-                return api_response({"message": "Предмет не найден"}, False)
-
-            if withdraw_db.get_user_pending(user_id):
-                return api_response({"message": "У вас уже есть заявка на вывод"}, False)
-
-            withdraw_db.create(user_id, item_id, item["name"], item["value"])
-            hold_hours = settings_db.get("bot", "withdraw_hold_hours", 24)
-            return api_response({
-                "message": f"Заявка принята. Ожидайте {hold_hours} ч.",
-                "hold_hours": hold_hours
-            })
-
-        # ===== ИГРЫ =====
-        if "/bet" in path and method == "POST":
-            game = path.split("/")[2]
-            bet = body.get("bet", 0)
-            user = user_db.get_user(user_id)
-            if user["balance"] < bet:
-                return api_response({"message": "Недостаточно средств"}, False)
-
-            user_db.remove_balance(user_id, bet)
-            user["games_played"] = user.get("games_played", 0) + 1
-            user_db.save()
-            return api_response({"success": True})
-
-        if "/finish" in path and method == "POST":
-            game = path.split("/")[2]
-            bet = body.get("bet", 0)
-            win = body.get("win", 0)
-            if win > 0:
-                user_db.add_balance(user_id, win)
-                user = user_db.get_user(user_id)
-                user["games_won"] = user.get("games_won", 0) + 1
-                user_db.save()
-            stats_db.add_game(game, bet, win)
-            return api_response({"success": True})
-
-        # ===== ТРЕЙДИНГ =====
-        if path == "/trading/assets" and method == "GET":
-            assets = [
-                {"id": 1, "name": "ЗОЛОТО", "symbol": "GOLD", "price": 1850, "change": 0.2, "emoji": "🟡"},
-                {"id": 2, "name": "НЕФТЬ", "symbol": "OIL", "price": 75, "change": -0.5, "emoji": "🛢️"},
-                {"id": 3, "name": "БИТКОИН", "symbol": "BTC", "price": 45200, "change": 1.2, "emoji": "₿"},
-                {"id": 4, "name": "СЕРЕБРО", "symbol": "AG", "price": 22, "change": 0.1, "emoji": "⚪"}
-            ]
-            return api_response({"assets": assets})
-
-        # ===== ЛИДЕРЫ =====
-        if path.startswith("/leaderboard") and method == "GET":
-            sort_by = path.split("/")[-1]
-            leaders = user_db.get_top_players(20, sort_by)
-            user = user_db.get_user(user_id)
-            user_rank = next((i+1 for i, l in enumerate(leaders) if str(l["id"]) == str(user_id)), None)
-            return api_response({
-                "leaders": leaders,
-                "userRank": user_rank,
-                "userScore": user["balance"] if sort_by == "balance" else user["games_won"]
-            })
-
-        # ===== ПРОМОКОДЫ =====
-        if path == "/promo/activate" and method == "POST":
-            code = body.get("code")
-            user = user_db.get_user(user_id)
-            if code in user.get("used_promos", []):
-                return api_response({"message": "Промокод уже использован"}, False)
-
-            promo = promo_db.use(code, user_id)
-            if not promo:
-                return api_response({"message": "Промокод не найден"}, False)
-
-            if promo["reward_type"] == "stars":
-                user_db.add_balance(user_id, promo["value"])
-            user["used_promos"] = user.get("used_promos", []) + [code]
-            user_db.save()
-            return api_response({"message": f"Активирован! +{promo['value']}⭐"})
-
-        # ===== ЗАДАНИЯ =====
-        if path.startswith("/tasks") and method == "GET":
-            tasks = tasks_db.get_active()
-            user = user_db.get_user(user_id)
-            completed = user.get("completed_tasks", [])
-            result = [{"id": t["id"], "name": t["name"], "reward": t["reward"], "completed": t["id"] in completed} for t in tasks]
-            return api_response({"tasks": result})
-
-        if path == "/tasks/complete" and method == "POST":
-            task_id = body.get("task_id")
-            task = next((t for t in tasks_db.get_active() if t["id"] == task_id), None)
-            if not task:
-                return api_response({"message": "Задание не найдено"}, False)
-
-            user = user_db.get_user(user_id)
-            if task_id in user.get("completed_tasks", []):
-                return api_response({"message": "Уже выполнено"}, False)
-
-            try:
-                member = await bot.get_chat_member(task["channel_id"], user_id)
-                if member.status not in ["member", "administrator", "creator"]:
-                    return api_response({"message": "Не подписаны на канал"}, False)
-            except:
-                return api_response({"message": "Ошибка проверки"}, False)
-
-            user_db.add_balance(user_id, task["reward"])
-            user["completed_tasks"] = user.get("completed_tasks", []) + [task_id]
-            user_db.save()
-            return api_response({"reward": task["reward"]})
-
-        # ===== МУЗЫКА =====
-        if path == "/music/playlist" and method == "GET":
-            return api_response({"playlist": music_db.get_all()})
-
-        return api_response({"message": "Endpoint not found"}, False)
-
-    except Exception as e:
-        logging.error(f"API Error: {e}")
-        return api_response({"message": str(e)}, False)
-# ========== АДМИНКА ==========
-@dp.callback_query(F.data == "admin_withdraws")
-async def admin_withdraws(callback: CallbackQuery):
-    if callback.from_user.id not in ADMIN_IDS: return
-    pending = withdraw_db.get_pending()
-    if not pending:
-        await callback.message.edit_text("📤 Нет заявок", reply_markup=back_to_admin())
-        return
-    text = "<b>📤 Заявки на вывод NFT</b>\n\n"
-    for req in pending[:5]:
-        text += f"#{req['id']} | {req['nft_name']} | {req['nft_value']}⭐\n"
-    builder = InlineKeyboardBuilder()
-    for req in pending[:5]:
-        builder.button(text=f"✅ #{req['id']}", callback_data=f"wd_{req['id']}")
-    builder.button(text="🔙 Назад", callback_data="back_to_admin")
-    builder.adjust(5)
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
-
-@dp.callback_query(F.data.startswith("wd_"))
-async def wd_complete(callback: CallbackQuery):
-    if callback.from_user.id not in ADMIN_IDS: return
-    req_id = int(callback.data.split("_")[1])
-    withdraw_db.complete(req_id)
-    await callback.message.edit_text(f"✅ Заявка #{req_id} выполнена", reply_markup=back_to_admin())
-
-class MusicStates(StatesGroup):
-    waiting_name = State()
-    waiting_url = State()
-
-@dp.callback_query(F.data == "admin_music")
-async def admin_music(callback: CallbackQuery):
-    if callback.from_user.id not in ADMIN_IDS: return
-    tracks = music_db.get_all()
-    text = "<b>🎵 Плейлист</b>\n\n"
-    for t in tracks:
-        text += f"🎵 {t['name']}\n"
-    builder = InlineKeyboardBuilder()
-    builder.button(text="➕ Добавить", callback_data="music_add")
-    builder.button(text="🔙 Назад", callback_data="back_to_admin")
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
-
-@dp.callback_query(F.data == "music_add")
-async def music_add(callback: CallbackQuery, state: FSMContext):
-    if callback.from_user.id not in ADMIN_IDS: return
-    await state.set_state(MusicStates.waiting_name)
-    await callback.message.edit_text("🎵 Введите название трека:", reply_markup=back_to_admin())
-
-@dp.message(MusicStates.waiting_name)
-async def music_name(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
-    await state.update_data(name=message.text)
-    await state.set_state(MusicStates.waiting_url)
-    await message.answer("🔗 Введите URL MP3 файла:")
-
-@dp.message(MusicStates.waiting_url)
-async def music_url(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
-    data = await state.get_data()
-    music_db.add(data["name"], message.text)
-    await message.answer("✅ Трек добавлен!", reply_markup=get_admin_panel())
-    await state.clear()
-    # ========== АДМИНКА: NFT ==========
+# ========== АДМИНКА: NFT ==========
 class NFTStates(StatesGroup):
     waiting_name = State()
     waiting_emoji = State()
@@ -833,27 +408,23 @@ async def admin_nfts(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "nft_create")
 async def nft_create_start(callback: CallbackQuery, state: FSMContext):
-    if callback.from_user.id not in ADMIN_IDS: return
     await state.set_state(NFTStates.waiting_name)
     await callback.message.edit_text("🎨 Введите название NFT:", reply_markup=back_to_admin())
 
 @dp.message(NFTStates.waiting_name)
 async def nft_name(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     await state.update_data(name=message.text)
     await state.set_state(NFTStates.waiting_emoji)
     await message.answer("😊 Введите эмодзи для NFT:")
 
 @dp.message(NFTStates.waiting_emoji)
 async def nft_emoji(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     await state.update_data(emoji=message.text)
     await state.set_state(NFTStates.waiting_value)
     await message.answer("💰 Введите стоимость NFT (в звёздах):")
 
 @dp.message(NFTStates.waiting_value)
 async def nft_value(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     try:
         value = int(message.text)
         await state.update_data(value=value)
@@ -864,7 +435,6 @@ async def nft_value(message: Message, state: FSMContext):
 
 @dp.message(NFTStates.waiting_rarity)
 async def nft_rarity(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     data = await state.get_data()
     nft = nft_db.create_nft(data["name"], data["value"], data["emoji"], message.text)
     await message.answer(f"✅ NFT создан!\n{nft['emoji']} {nft['name']} — {nft['value']}⭐", reply_markup=get_admin_panel())
@@ -903,20 +473,17 @@ async def admin_cases(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "case_create")
 async def case_create_start(callback: CallbackQuery, state: FSMContext):
-    if callback.from_user.id not in ADMIN_IDS: return
     await state.set_state(CaseStates.waiting_name)
     await callback.message.edit_text("📦 Введите название кейса:", reply_markup=back_to_admin())
 
 @dp.message(CaseStates.waiting_name)
 async def case_name(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     await state.update_data(name=message.text)
     await state.set_state(CaseStates.waiting_price)
     await message.answer("💰 Введите цену кейса (в звёздах):")
 
 @dp.message(CaseStates.waiting_price)
 async def case_price(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     try:
         price = int(message.text)
         await state.update_data(price=price)
@@ -927,7 +494,6 @@ async def case_price(message: Message, state: FSMContext):
 
 @dp.message(CaseStates.waiting_emoji)
 async def case_emoji(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     data = await state.get_data()
     case = cases_db.create_case(data["name"], data["price"], message.text)
     await message.answer(f"✅ Кейс создан!\n{case['emoji']} {case['name']} — {case['price']}⭐\n\nТеперь добавьте предметы через «Добавить предмет»", reply_markup=get_admin_panel())
@@ -935,7 +501,6 @@ async def case_emoji(message: Message, state: FSMContext):
 
 @dp.callback_query(F.data == "case_add_item")
 async def case_add_item_start(callback: CallbackQuery, state: FSMContext):
-    if callback.from_user.id not in ADMIN_IDS: return
     cases = cases_db.get_all()
     if not cases:
         await callback.answer("Сначала создайте кейс!", show_alert=True)
@@ -950,7 +515,6 @@ async def case_add_item_start(callback: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(CaseItemStates.waiting_case, F.data.startswith("caseitem_"))
 async def case_item_case(callback: CallbackQuery, state: FSMContext):
-    if callback.from_user.id not in ADMIN_IDS: return
     case_id = int(callback.data.split("_")[1])
     await state.update_data(case_id=case_id)
     await state.set_state(CaseItemStates.waiting_type)
@@ -963,7 +527,6 @@ async def case_item_case(callback: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(CaseItemStates.waiting_type, F.data.startswith("itype_"))
 async def case_item_type(callback: CallbackQuery, state: FSMContext):
-    if callback.from_user.id not in ADMIN_IDS: return
     item_type = callback.data.split("_")[1]
     await state.update_data(item_type=item_type)
     await state.set_state(CaseItemStates.waiting_name)
@@ -971,14 +534,12 @@ async def case_item_type(callback: CallbackQuery, state: FSMContext):
 
 @dp.message(CaseItemStates.waiting_name)
 async def case_item_name(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     await state.update_data(name=message.text)
     await state.set_state(CaseItemStates.waiting_value)
     await message.answer("💰 Введите стоимость (в звёздах):")
 
 @dp.message(CaseItemStates.waiting_value)
 async def case_item_value(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     try:
         value = int(message.text)
         await state.update_data(value=value)
@@ -989,14 +550,12 @@ async def case_item_value(message: Message, state: FSMContext):
 
 @dp.message(CaseItemStates.waiting_emoji)
 async def case_item_emoji(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     await state.update_data(emoji=message.text)
     await state.set_state(CaseItemStates.waiting_chance)
     await message.answer("🎲 Введите шанс выпадения (1-100):")
 
 @dp.message(CaseItemStates.waiting_chance)
 async def case_item_chance(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS: return
     try:
         chance = int(message.text)
         if chance < 1 or chance > 100:
@@ -1008,8 +567,267 @@ async def case_item_chance(message: Message, state: FSMContext):
         await state.clear()
     except:
         await message.answer("❌ Введите число!")
+
+# ========== АДМИНКА: ПРОМОКОДЫ ==========
+class PromoStates(StatesGroup):
+    waiting_code = State()
+    waiting_reward_type = State()
+    waiting_value = State()
+    waiting_uses = State()
+
+@dp.callback_query(F.data == "admin_promos")
+async def admin_promos(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS: return
+    promos = promo_db.promos
+    text = "<b>🎟️ Промокоды</b>\n\n"
+    if promos:
+        for p in promos[-5:]:
+            text += f"<code>{p['code']}</code> — {p['value']}{'⭐' if p['reward_type']=='stars' else ' NFT'} ({p['uses_left']}/{p['uses_total']})\n"
+    else:
+        text += "Нет активных промокодов"
+    builder = InlineKeyboardBuilder()
+    builder.button(text="➕ Создать промокод", callback_data="promo_create")
+    builder.button(text="🔙 Назад", callback_data="back_to_admin")
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data == "promo_create")
+async def promo_create_start(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(PromoStates.waiting_code)
+    await callback.message.edit_text("🎟️ Введите код промокода:", reply_markup=back_to_admin())
+
+@dp.message(PromoStates.waiting_code)
+async def promo_code(message: Message, state: FSMContext):
+    await state.update_data(code=message.text.upper())
+    await state.set_state(PromoStates.waiting_reward_type)
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⭐ Звёзды", callback_data="promotype_stars")
+    builder.button(text="🎁 NFT", callback_data="promotype_nft")
+    builder.button(text="🔙 Назад", callback_data="back_to_admin")
+    await message.answer("🎁 Выберите тип награды:", reply_markup=builder.as_markup())
+
+@dp.callback_query(PromoStates.waiting_reward_type, F.data.startswith("promotype_"))
+async def promo_reward_type(callback: CallbackQuery, state: FSMContext):
+    rtype = callback.data.split("_")[1]
+    await state.update_data(reward_type=rtype)
+    await state.set_state(PromoStates.waiting_value)
+    await callback.message.edit_text("💰 Введите количество звёзд или ID NFT:", reply_markup=back_to_admin())
+
+@dp.message(PromoStates.waiting_value)
+async def promo_value(message: Message, state: FSMContext):
+    try:
+        value = int(message.text)
+        await state.update_data(value=value)
+        await state.set_state(PromoStates.waiting_uses)
+        await message.answer("🔢 Введите количество активаций:")
+    except:
+        await message.answer("❌ Введите число!")
+
+@dp.message(PromoStates.waiting_uses)
+async def promo_uses(message: Message, state: FSMContext):
+    try:
+        uses = int(message.text)
+        data = await state.get_data()
+        promo = promo_db.create(data["code"], data["reward_type"], data["value"], uses)
+        await message.answer(f"✅ Промокод <code>{promo['code']}</code> создан!", reply_markup=get_admin_panel())
+        await state.clear()
+    except:
+        await message.answer("❌ Введите число!")
+
+# ========== АДМИНКА: ВЫВОДЫ NFT ==========
+@dp.callback_query(F.data == "admin_withdraws")
+async def admin_withdraws(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS: return
+    pending = withdraw_db.get_pending()
+    if not pending:
+        await callback.message.edit_text("📤 Нет активных заявок", reply_markup=back_to_admin())
+        return
+    text = "<b>📤 Заявки на вывод</b>\n\n"
+    for req in pending:
+        text += f"#{req['id']} {req['nft_name']} (ID {req['user_id']})\n"
+    builder = InlineKeyboardBuilder()
+    for req in pending[:5]:
+        builder.button(text=f"✅ #{req['id']}", callback_data=f"wd_{req['id']}")
+    builder.button(text="🔙 Назад", callback_data="back_to_admin")
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data.startswith("wd_"))
+async def wd_complete(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS: return
+    req_id = int(callback.data.split("_")[1])
+    withdraw_db.complete(req_id)
+    await callback.message.edit_text(f"✅ Заявка #{req_id} выполнена", reply_markup=back_to_admin())
+
+# ========== АДМИНКА: НАСТРОЙКИ ИГР ==========
+class GameSettingsStates(StatesGroup):
+    waiting_game = State()
+    waiting_key = State()
+    waiting_value = State()
+
+@dp.callback_query(F.data == "admin_games")
+async def admin_games(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS: return
+    builder = InlineKeyboardBuilder()
+    for game in ["rocket", "mines", "blackjack", "trading"]:
+        builder.button(text=f"🎮 {game}", callback_data=f"gamecfg_{game}")
+    builder.button(text="🔙 Назад", callback_data="back_to_admin")
+    builder.adjust(2)
+    await callback.message.edit_text("🎮 Выберите игру:", reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data.startswith("gamecfg_"))
+async def gamecfg_select(callback: CallbackQuery, state: FSMContext):
+    game = callback.data.split("_")[1]
+    await state.update_data(game=game)
+    settings = settings_db.settings.get(game, {})
+    text = f"⚙️ <b>{game}</b>\n\n" + "\n".join([f"{k} = {v}" for k, v in settings.items()])
+    text += "\n\nВведите ключ для изменения:"
+    await state.set_state(GameSettingsStates.waiting_key)
+    await callback.message.edit_text(text, reply_markup=back_to_admin())
+
+@dp.message(GameSettingsStates.waiting_key)
+async def gamecfg_key(message: Message, state: FSMContext):
+    await state.update_data(key=message.text)
+    await state.set_state(GameSettingsStates.waiting_value)
+    await message.answer("📝 Введите новое значение:")
+
+@dp.message(GameSettingsStates.waiting_value)
+async def gamecfg_value(message: Message, state: FSMContext):
+    data = await state.get_data()
+    game = data["game"]
+    key = data["key"]
+    val = message.text
+    try:
+        if '.' in val: val = float(val)
+        else: val = int(val)
+    except:
+        pass
+    settings_db.set(game, key, val)
+    await message.answer(f"✅ {key} = {val}", reply_markup=get_admin_panel())
+    await state.clear()
+# ========== API ДЛЯ MINI APP (с CORS middleware) ==========
+@web.middleware
+async def cors_middleware(request: web.Request, handler):
+    if request.method == "OPTIONS":
+        return web.Response(status=200, headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, X-User-Id",
+        })
+    response = await handler(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
+async def handle_api_request(request: web.Request) -> web.Response:
+    try:
+        path = request.path.replace("/api", "")
+        method = request.method
+        body = {}
+        if method in ["POST", "PUT"]:
+            body = await request.json()
+
+        # 1. Сначала проверяем самые простые запросы, не требующие авторизации
+        if path == "" or path == "/":
+            return web.json_response({"success": True, "message": "API OK"})
+
+        if path == "/cases" and method == "GET":
+            cases = cases_db.get_all()
+            return web.json_response({"success": True, "cases": cases})
+
+        # 2. Получаем или создаём user_id
+        raw_user_id = request.headers.get("X-User-Id")
+        user_id = None
+        if raw_user_id:
+            try:
+                user_id = int(raw_user_id)
+            except ValueError:
+                return web.json_response(
+                    {"success": False, "message": "Invalid user_id"},
+                    status=400,
+                )
+
+        # 3. Если нет ID — используем демо‑пользователя (первого админа)
+        if not user_id:
+            user_id = ADMIN_IDS[0]  # 8440115662
+            logging.warning(f"⚠️ Использую демо‑пользователя {user_id}")
+
+        # 4. Все остальные запросы (пользователь, кейсы, игры)
+        if path == "/user" and method in ("GET", "POST"):
+            user = user_db.get_user(user_id)
+            return web.json_response({"success": True, "user": user})
+
+        if path == "/case/open" and method == "POST":
+            case_id = body.get("case_id")
+            case = cases_db.get_case(case_id)
+            if not case:
+                return web.json_response({"success": False, "message": "Кейс не найден"})
+            user = user_db.get_user(user_id)
+            if user["balance"] < case["price"]:
+                return web.json_response({"success": False, "message": "Недостаточно средств"})
+            user_db.remove_balance(user_id, case["price"])
+            item = cases_db.open_case(case_id)
+            if item["type"] == "stars":
+                user_db.add_balance(user_id, item["value"])
+            else:
+                user["inventory"].append({"id": str(uuid.uuid4())[:8], "name": item["name"], "value": item["value"], "emoji": item["emoji"], "rarity": "Кейс"})
+                user_db.save()
+            return web.json_response({"success": True, "item": item})
+
+        if "/bet" in path and method == "POST":
+            bet = body.get("bet", 0)
+            user = user_db.get_user(user_id)
+            if user["balance"] < bet:
+                return web.json_response({"success": False, "message": "Недостаточно средств"})
+            user_db.remove_balance(user_id, bet)
+            return web.json_response({"success": True})
+
+        if "/finish" in path and method == "POST":
+            win = body.get("win", 0)
+            if win > 0:
+                user_db.add_balance(user_id, win)
+            return web.json_response({"success": True})
+
+        return web.json_response({"success": False, "message": "Endpoint not found"}, status=404)
+
+    except Exception as e:
+        logging.error(f"API Error: {e}")
+        return web.json_response({"success": False, "message": str(e)}, status=500)
+
+        if path == "/cases":
+            return web.json_response({"success": True, "cases": cases_db.get_all()})
+
+        if path == "/case/open":
+            case_id = body.get("case_id")
+            case = cases_db.get_case(case_id)
+            if not case: return web.json_response({"success": False, "message": "Кейс не найден"})
+            user = user_db.get_user(user_id)
+            if user["balance"] < case["price"]: return web.json_response({"success": False, "message": "Недостаточно средств"})
+            user_db.remove_balance(user_id, case["price"])
+            item = cases_db.open_case(case_id)
+            if item["type"] == "stars":
+                user_db.add_balance(user_id, item["value"])
+            else:
+                user["inventory"].append({"id": str(uuid.uuid4())[:8], "name": item["name"], "value": item["value"], "emoji": item["emoji"], "rarity": "Кейс"})
+                user_db.save()
+            return web.json_response({"success": True, "item": item})
+
+        if "/bet" in path:
+            bet = body.get("bet", 0)
+            user = user_db.get_user(user_id)
+            if user["balance"] < bet: return web.json_response({"success": False, "message": "Недостаточно средств"})
+            user_db.remove_balance(user_id, bet)
+            return web.json_response({"success": True})
+
+        if "/finish" in path:
+            win = body.get("win", 0)
+            if win > 0: user_db.add_balance(user_id, win)
+            return web.json_response({"success": True})
+
+        return web.json_response({"success": False, "message": "Endpoint not found"}, status=404)
+
+    except Exception as e:
+        return web.json_response({"success": False, "message": str(e)}, status=500)
+
 # ========== WEBHOOK ==========
-WEBHOOK_HOST = os.environ.get("RENDER_EXTERNAL_URL", "https://your-bot.onrender.com")
+WEBHOOK_HOST = os.environ.get("RENDER_EXTERNAL_URL", "https://gost-tqfw.onrender.com")
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 WEBAPP_HOST = "0.0.0.0"
@@ -1027,10 +845,9 @@ async def main():
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
 
-    app = web.Application()
-    app.router.add_post(f"/api/{{tail:.*}}", handle_api_request)
-    app.router.add_get(f"/api/{{tail:.*}}", handle_api_request)
-    app.router.add_options(f"/api/{{tail:.*}}", handle_api_request)
+    app = web.Application(middlewares=[cors_middleware])
+    app.router.add_post("/api/{tail:.*}", handle_api_request)
+    app.router.add_get("/api/{tail:.*}", handle_api_request)
 
     webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
     webhook_handler.register(app, path=WEBHOOK_PATH)
@@ -1040,7 +857,6 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, WEBAPP_HOST, WEBAPP_PORT)
     await site.start()
-
     print(f"🚀 Бот запущен на {WEBHOOK_URL}")
     await asyncio.Event().wait()
 
